@@ -125,7 +125,8 @@ fun KeyStore.getCertificateAndKey(alias: String, keyPassword: String): Certifica
     val keyPass = keyPassword.toCharArray()
     val key = getKey(alias, keyPass) as PrivateKey
     val cert = getCertificate(alias) as X509Certificate
-    return CertificateAndKey(cert, KeyPair(cert.publicKey, key))
+    // Using Crypto.decodePublicKey to convert X509Key to proper public key implementation.
+    return CertificateAndKey(cert, KeyPair(Crypto.decodePublicKey(cert.publicKey.encoded), key))
 }
 
 /**
