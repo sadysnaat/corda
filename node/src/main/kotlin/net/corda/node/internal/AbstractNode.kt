@@ -126,7 +126,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         override val storageService: TxWritableStorageService get() = storage
         override val vaultService: VaultService get() = vault
         override val keyManagementService: KeyManagementService get() = keyManagement
-        override val identityService: IdentityService get() = identity
+        override val identityService: IdentityServiceInternal get() = identity
         override val schedulerService: SchedulerService get() = scheduler
         override val clock: Clock get() = platformClock
         override val myInfo: NodeInfo get() = info
@@ -171,7 +171,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     lateinit var keyManagement: KeyManagementService
     var inNodeNetworkMapService: NetworkMapService? = null
     lateinit var txVerifierService: TransactionVerifierService
-    lateinit var identity: IdentityService
+    lateinit var identity: IdentityServiceInternal
     lateinit var net: MessagingService
     lateinit var netMapCache: NetworkMapCacheInternal
     lateinit var scheduler: NodeSchedulerService
@@ -504,7 +504,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
     protected abstract fun makeUniquenessProvider(type: ServiceType): UniquenessProvider
 
-    protected open fun makeIdentityService(): IdentityService {
+    protected open fun makeIdentityService(): IdentityServiceInternal {
         val service = InMemoryIdentityService()
         service.registerIdentity(info.legalIdentity)
         services.networkMapCache.partyNodes.forEach { service.registerIdentity(it.legalIdentity) }
