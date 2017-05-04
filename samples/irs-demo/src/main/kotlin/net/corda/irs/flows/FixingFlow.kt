@@ -12,6 +12,7 @@ import net.corda.core.node.PluginServiceHub
 import net.corda.core.node.services.ServiceType
 import net.corda.core.seconds
 import net.corda.core.serialization.CordaSerializable
+import net.corda.core.transactions.SignedTransaction
 import net.corda.core.transactions.TransactionBuilder
 import net.corda.core.utilities.ProgressTracker
 import net.corda.core.utilities.trace
@@ -120,6 +121,10 @@ object FixingFlow {
 
         override val notaryNode: NodeInfo get() =
         serviceHub.networkMapCache.notaryNodes.filter { it.notaryIdentity == dealToFix.state.notary }.single()
+
+        @Suspendable override fun checkProposal(stx: SignedTransaction) {
+            // TODO: Add some constraints.
+        }
     }
 
 
