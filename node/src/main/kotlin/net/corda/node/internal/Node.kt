@@ -15,12 +15,15 @@ import net.corda.core.node.services.ServiceType
 import net.corda.core.node.services.UniquenessProvider
 import net.corda.core.success
 import net.corda.core.utilities.loggerFor
+import net.corda.core.utilities.trace
 import net.corda.node.printBasicNodeInfo
 import net.corda.node.serialization.NodeClock
 import net.corda.node.services.RPCUserService
 import net.corda.node.services.RPCUserServiceImpl
 import net.corda.node.services.config.FullNodeConfiguration
 import net.corda.node.services.messaging.ArtemisMessagingServer
+import net.corda.node.services.messaging.ArtemisMessagingServer.Companion.ipDetectRequestProperty
+import net.corda.node.services.messaging.ArtemisMessagingServer.Companion.ipDetectResponseProperty
 import net.corda.node.services.messaging.MessagingService
 import net.corda.node.services.messaging.NodeMessagingClient
 import net.corda.node.services.transactions.PersistentUniquenessProvider
@@ -29,12 +32,19 @@ import net.corda.node.services.transactions.RaftUniquenessProvider
 import net.corda.node.services.transactions.RaftValidatingNotaryService
 import net.corda.node.utilities.AddressUtils
 import net.corda.node.utilities.AffinityExecutor
+import net.corda.nodeapi.ArtemisMessagingComponent.Companion.IP_REQUEST_PREFIX
+import net.corda.nodeapi.ArtemisMessagingComponent.Companion.PEER_USER
 import net.corda.nodeapi.ArtemisMessagingComponent.NetworkMapAddress
+import net.corda.nodeapi.ArtemisTcpTransport
+import net.corda.nodeapi.ConnectionDirection
+import org.apache.activemq.artemis.api.core.client.ActiveMQClient
+import org.apache.activemq.artemis.api.core.client.ClientMessage
 import org.slf4j.Logger
 import java.io.RandomAccessFile
 import java.lang.management.ManagementFactory
 import java.nio.channels.FileLock
 import java.time.Clock
+import java.util.*
 import javax.management.ObjectName
 import kotlin.concurrent.thread
 
@@ -135,23 +145,48 @@ class Node(override val configuration: FullNodeConfiguration,
 
     /**
      * Checks whether the specified [host] is a public IP address or hostname. If not, tries to discover the current
-     * machine's public IP address to be used instead. Note that it will only work if the machine is internet-facing.
-     * If none found, outputs a warning message.
+     * machine's public IP address to be used instead. It first looks through the network interfaces, and if no public IP
+     * is found, asks the network map service to provide it.
      */
     private fun tryDetectIfNotPublicHost(host: String): String? {
         if (!AddressUtils.isPublic(host)) {
             val foundPublicIP = AddressUtils.tryDetectPublicIP()
+
             if (foundPublicIP == null) {
-                val message = "The specified messaging host \"$host\" is private, " +
-                        "this node will not be reachable by any other nodes outside the private network."
-                println("WARNING: $message")
-                log.warn(message)
+                if (configuration.networkMapService != null)
+                    return discoverPublicHost(configuration.networkMapService.address)
             } else {
-                log.info("Detected public IP: $foundPublicIP. This will be used instead the provided \"$host\" as the advertised address.")
+                log.info("Detected public IP: ${foundPublicIP.hostAddress}. This will be used instead the provided \"$host\" as the advertised address.")
+                return foundPublicIP.hostAddress
             }
-            return foundPublicIP?.hostAddress
         }
         return null
+    }
+
+    private fun discoverPublicHost(serverAddress: HostAndPort): String? {
+        log.trace { "Trying to detect public hostname through the Network Map Service at $serverAddress" }
+        val tcpTransport = ArtemisTcpTransport.tcpTransport(ConnectionDirection.Outbound(), serverAddress, configuration)
+        val locator = ActiveMQClient.createServerLocatorWithoutHA(tcpTransport)
+        val clientFactory = locator.createSessionFactory()
+
+        val session = clientFactory!!.createSession(PEER_USER, PEER_USER, false, true, true, locator.isPreAcknowledge, ActiveMQClient.DEFAULT_ACK_BATCH_SIZE)
+        val requestId = UUID.randomUUID().toString()
+        session.addMetaData(ipDetectRequestProperty, requestId)
+        session.start()
+
+        val queueName = "$IP_REQUEST_PREFIX$requestId"
+        session.createQueue(queueName, queueName, false)
+
+        val consumer = session.createConsumer(queueName)
+        val artemisMessage: ClientMessage = consumer.receive(5000)
+        val publicHostAndPort = HostAndPort.fromString(artemisMessage.getStringProperty(ipDetectResponseProperty))
+        log.trace { "Detected public address: $publicHostAndPort" }
+
+        consumer.close()
+        session.deleteQueue(queueName)
+        clientFactory.close()
+
+        return publicHostAndPort.host
     }
 
     override fun startMessagingService(rpcOps: RPCOps) {

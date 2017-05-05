@@ -37,6 +37,8 @@ import org.apache.activemq.artemis.core.remoting.impl.netty.NettyConnectorFactor
 import org.apache.activemq.artemis.core.security.Role
 import org.apache.activemq.artemis.core.server.ActiveMQServer
 import org.apache.activemq.artemis.core.server.impl.ActiveMQServerImpl
+import org.apache.activemq.artemis.core.server.impl.RoutingContextImpl
+import org.apache.activemq.artemis.core.server.impl.ServerMessageImpl
 import org.apache.activemq.artemis.spi.core.remoting.*
 import org.apache.activemq.artemis.spi.core.security.ActiveMQJAASSecurityManager
 import org.apache.activemq.artemis.spi.core.security.jaas.CertificateCallback
@@ -89,6 +91,9 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
         private val log = loggerFor<ArtemisMessagingServer>()
         /** 10 MiB maximum allowed file size for attachments, including message headers. TODO: acquire this value from Network Map when supported. */
         @JvmStatic val MAX_FILE_SIZE = 10485760
+
+        val ipDetectRequestProperty = "ip-request-id"
+        val ipDetectResponseProperty = "ip-address"
     }
 
     private class InnerState {
@@ -143,6 +148,7 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
             // Some types of queue might need special preparation on our side, like dialling back or preparing
             // a lazily initialised subsystem.
             registerPostQueueCreationCallback { deployBridgesFromNewQueue(it.toString()) }
+            registerPostQueueCreationCallback { handleIpDetectionRequest(it.toString()) }
             registerPostQueueDeletionCallback { address, qName -> log.debug { "Queue deleted: $qName for $address" } }
         }
         activeMQServer.start()
@@ -216,6 +222,10 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
         securityRoles[RPC_REQUESTS_QUEUE] = setOf(nodeInternalRole, restrictedRole(RPC_ROLE, send = true))
         // TODO remove the NODE_USER role once the webserver doesn't need it
         securityRoles["$CLIENTS_PREFIX$NODE_USER.rpc.*"] = setOf(nodeInternalRole)
+        securityRoles["$IP_REQUEST_PREFIX*"] = setOf(
+                nodeInternalRole,
+                restrictedRole(PEER_ROLE, consume = true, createNonDurableQueue = true, deleteNonDurableQueue = true)
+        )
         for ((username) in userService.users) {
             securityRoles["$CLIENTS_PREFIX$username.rpc.*"] = setOf(
                     nodeInternalRole,
@@ -412,6 +422,31 @@ class ArtemisMessagingServer(override val config: NodeConfiguration,
         if (peerLegalName == config.networkMapService?.legalName) {
             _networkMapConnectionFuture!!.set(Unit)
         }
+    }
+
+    private fun handleIpDetectionRequest(queueName: String) {
+        fun getRemoteAddress(requestId: String): String? {
+            val session = activeMQServer.sessions.first {
+                it.getMetaData(ipDetectRequestProperty) == requestId
+            }
+            return session.remotingConnection.remoteAddress
+        }
+
+        fun sendResponse(remoteAddress: String?) {
+            val responseMessage = ServerMessageImpl(random63BitValue(), 0).apply {
+                putStringProperty(ipDetectResponseProperty, remoteAddress)
+            }
+            val routingContext = RoutingContextImpl(null)
+            val queue = activeMQServer.locateQueue(SimpleString(queueName))
+            queue.route(responseMessage, routingContext)
+            activeMQServer.postOffice.processRoute(responseMessage, routingContext, true)
+        }
+
+        if (!queueName.startsWith(IP_REQUEST_PREFIX)) return
+        val requestId = queueName.substringAfter(IP_REQUEST_PREFIX)
+        val remoteAddress = getRemoteAddress(requestId)
+        log.debug { "Detected remote address $remoteAddress for request $requestId" }
+        sendResponse(remoteAddress)
     }
 }
 
