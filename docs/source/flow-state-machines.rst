@@ -206,9 +206,9 @@ how to register handlers with the messaging system (see ":doc:`messaging`") and 
 when messages arrive. It provides the send/receive/sendAndReceive calls that let the code request network
 interaction and it will save/restore serialised versions of the fiber at the right times.
 
-Flows can be invoked in several ways. For instance, they can be triggered by scheduled events,
-see ":doc:`event-scheduling`" to learn more about this. Or they can be triggered directly via the Java-level node RPC
-APIs from your app code.
+Flows can be invoked in several ways. For instance, they can be triggered by scheduled events (in which case they need to
+be annotated with `SchedulableFlow`), see ":doc:`event-scheduling`" to learn more about this. Or they can be triggered
+directly via the node's RPC API from your app code (in which case they need to be annotated with `StartableByRPC`).
 
 You request a flow to be invoked by using the ``CordaRPCOps.startFlowDynamic`` method. This takes a
 Java reflection ``Class`` object that describes the flow class to use (in this case, either ``Buyer`` or ``Seller``).

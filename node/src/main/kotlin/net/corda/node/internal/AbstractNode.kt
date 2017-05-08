@@ -6,8 +6,6 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import com.google.common.util.concurrent.SettableFuture
 import net.corda.core.*
-import net.corda.core.contracts.Amount
-import net.corda.core.contracts.PartyAndReference
 import net.corda.core.crypto.KeyStoreUtilities
 import net.corda.core.crypto.Party
 import net.corda.core.crypto.X509Utilities
@@ -15,13 +13,13 @@ import net.corda.core.crypto.replaceCommonName
 import net.corda.core.flows.FlowInitiator
 import net.corda.core.flows.FlowLogic
 import net.corda.core.flows.InitiatingFlow
+import net.corda.core.flows.StartableByRPC
 import net.corda.core.messaging.CordaRPCOps
 import net.corda.core.messaging.RPCOps
 import net.corda.core.messaging.SingleMessageRecipient
 import net.corda.core.node.*
 import net.corda.core.node.services.*
 import net.corda.core.node.services.NetworkMapCache.MapChange
-import net.corda.core.serialization.OpaqueBytes
 import net.corda.core.serialization.SingletonSerializeAsToken
 import net.corda.core.serialization.deserialize
 import net.corda.core.serialization.serialize
@@ -47,7 +45,6 @@ import net.corda.node.services.network.PersistentNetworkMapService
 import net.corda.node.services.persistence.*
 import net.corda.node.services.schema.HibernateObserver
 import net.corda.node.services.schema.NodeSchemaService
-import net.corda.node.services.statemachine.FlowLogicRefFactoryImpl
 import net.corda.node.services.statemachine.FlowStateMachineImpl
 import net.corda.node.services.statemachine.StateMachineManager
 import net.corda.node.services.statemachine.flowVersion
@@ -62,8 +59,11 @@ import net.corda.node.utilities.transaction
 import org.apache.activemq.artemis.utils.ReusableLatch
 import org.bouncycastle.asn1.x500.X500Name
 import org.jetbrains.exposed.sql.Database
+import org.reflections.Reflections
 import org.slf4j.Logger
 import java.io.IOException
+import java.lang.reflect.Modifier.isAbstract
+import java.lang.reflect.Modifier.isPublic
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Path
 import java.security.KeyPair
@@ -73,6 +73,9 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit.SECONDS
+import java.util.stream.Collectors.toList
+import kotlin.collections.ArrayList
+import kotlin.collections.HashSet
 import kotlin.reflect.KClass
 import net.corda.core.crypto.generateKeyPair as cryptoGenerateKeyPair
 
@@ -93,14 +96,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     companion object {
         val PRIVATE_KEY_FILE_NAME = "identity-private-key"
         val PUBLIC_IDENTITY_FILE_NAME = "identity-public"
-
-        val defaultFlowWhiteList: Map<Class<out FlowLogic<*>>, Set<Class<*>>> = mapOf(
-                CashExitFlow::class.java to setOf(Amount::class.java, PartyAndReference::class.java),
-                CashIssueFlow::class.java to setOf(Amount::class.java, OpaqueBytes::class.java, Party::class.java),
-                CashPaymentFlow::class.java to setOf(Amount::class.java, Party::class.java),
-                FinalityFlow::class.java to setOf(LinkedHashSet::class.java),
-                ContractUpgradeFlow::class.java to emptySet()
-        )
     }
 
     // TODO: Persist this, as well as whether the node is registered.
@@ -132,10 +127,10 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         override val myInfo: NodeInfo get() = info
         override val schemaService: SchemaService get() = schemas
         override val transactionVerifierService: TransactionVerifierService get() = txVerifierService
+        override val rpcFlows: List<Class<out FlowLogic<*>>> get() = this@AbstractNode.rpcFlows
 
         // Internal only
         override val monitoringService: MonitoringService = MonitoringService(MetricRegistry())
-        override val flowLogicRefFactory: FlowLogicRefFactoryInternal get() = flowLogicFactory
 
         override fun <T> startFlow(logic: FlowLogic<T>, flowInitiator: FlowInitiator): FlowStateMachineImpl<T> {
             return serverThread.fetchFrom { smm.add(logic, flowInitiator) }
@@ -175,12 +170,12 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
     lateinit var net: MessagingService
     lateinit var netMapCache: NetworkMapCacheInternal
     lateinit var scheduler: NodeSchedulerService
-    lateinit var flowLogicFactory: FlowLogicRefFactoryInternal
     lateinit var schemas: SchemaService
     val customServices: ArrayList<Any> = ArrayList()
     protected val runOnStop: ArrayList<Runnable> = ArrayList()
     lateinit var database: Database
     protected var dbCloser: Runnable? = null
+    private lateinit var rpcFlows: List<Class<out FlowLogic<*>>>
 
     /** Locates and returns a service of the given type if loaded, or throws an exception if not found. */
     inline fun <reified T : Any> findService() = customServices.filterIsInstance<T>().single()
@@ -248,6 +243,10 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             }
             startMessagingService(rpcOps)
             installCoreFlows()
+
+            val flows = scanForFlows()
+            rpcFlows = flows.filter { it.isAnnotationPresent(StartableByRPC::class.java) }
+
             runOnStop += Runnable { net.stop() }
             _networkMapRegistrationFuture.setFuture(registerWithNetworkMapIfConfigured())
             smm.start()
@@ -302,8 +301,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         // the KMS is meant for derived temporary keys used in transactions, and we're not supposed to sign things with
         // the identity key. But the infrastructure to make that easy isn't here yet.
         keyManagement = makeKeyManagementService()
-        flowLogicFactory = initialiseFlowLogicFactory()
-        scheduler = NodeSchedulerService(services, database, flowLogicFactory, unfinishedSchedules = busyNodeLatch)
+        scheduler = NodeSchedulerService(services, database, unfinishedSchedules = busyNodeLatch)
 
         val tokenizableServices = mutableListOf(storage, net, vault, keyManagement, identity, platformClock, scheduler)
         makeAdvertisedServices(tokenizableServices)
@@ -313,6 +311,29 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
 
         initUploaders(storageServices)
         return tokenizableServices
+    }
+
+    private fun scanForFlows(): Set<Class<out FlowLogic<*>>> {
+        val pluginsDir = configuration.baseDirectory / "plugins"
+        log.info("Scanning plugins in $pluginsDir ...")
+        if (!pluginsDir.exists()) return emptySet()
+
+        val pluginJars = pluginsDir.list {
+            it.filter { it.isRegularFile() && it.toString().endsWith(".jar") }.collect(toList())
+        }
+
+        fun Reflections.scanFlows() = getSubTypesOf(FlowLogic::class.java).filter { isPublic(it.modifiers) && !isAbstract(it.modifiers) }
+
+        val flows = pluginJars.flatMapTo(HashSet()) { jar ->
+            val flowClasses = Reflections(jar.toUri().toURL()).scanFlows()
+            val pluginName = jar.fileName.toString().dropLast(4)  // drop the .jar extension
+            log.info("Found following flows in plugin $pluginName: ${flowClasses.joinToString { it.name }}")
+            flowClasses
+        }
+
+        flows += Reflections("net.corda.").scanFlows()
+
+        return flows
     }
 
     private fun initUploaders(storageServices: Pair<TxWritableStorageService, CheckpointStorage>) {
@@ -381,26 +402,6 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
         } else {
             throw DatabaseConfigurationException("There must be a database configured.")
         }
-    }
-
-    private fun initialiseFlowLogicFactory(): FlowLogicRefFactoryInternal {
-        val flowWhitelist = HashMap<String, Set<String>>()
-
-        for ((flowClass, extraArgumentTypes) in defaultFlowWhiteList) {
-            val argumentWhitelistClassNames = HashSet(extraArgumentTypes.map { it.name })
-            flowClass.constructors.forEach {
-                it.parameters.mapTo(argumentWhitelistClassNames) { it.type.name }
-            }
-            flowWhitelist.merge(flowClass.name, argumentWhitelistClassNames, { x, y -> x + y })
-        }
-
-        for (plugin in pluginRegistries) {
-            for ((className, classWhitelist) in plugin.requiredFlows) {
-                flowWhitelist.merge(className, classWhitelist, { x, y -> x + y })
-            }
-        }
-
-        return FlowLogicRefFactoryImpl(flowWhitelist)
     }
 
     private fun makePluginServices(tokenizableServices: MutableList<Any>): List<Any> {

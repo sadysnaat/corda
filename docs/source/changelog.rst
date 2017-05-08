@@ -8,6 +8,9 @@ UNRELEASED
 ----------
 
 * API changes:
+    * ``CordaPluginRegistry.requiredFlows`` is no longer needed. Instead annotate any flows you wish to start via RPC with
+      ``StartableByRPC`` and any scheduled flows with ``SchedulableFlow``.
+
     * Initiating flows (i.e. those which initiate flows in a counterparty) are now required to be annotated with
       ``InitiatingFlow``.
 

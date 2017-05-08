@@ -7,6 +7,7 @@ import net.corda.core.utilities.DUMMY_BANK_A
 import net.corda.core.utilities.DUMMY_BANK_B
 import net.corda.core.utilities.DUMMY_NOTARY
 import net.corda.node.driver.driver
+import net.corda.node.services.startFlowPermission
 import net.corda.node.services.transactions.SimpleNotaryService
 import net.corda.nodeapi.User
 import org.junit.Test
@@ -17,7 +18,7 @@ class AttachmentDemoTest {
     @Test fun `attachment demo using a 10MB zip file`() {
         val numOfExpectedBytes = 10_000_000
         driver(dsl = {
-            val demoUser = listOf(User("demo", "demo", setOf("StartFlow.net.corda.flows.FinalityFlow")))
+            val demoUser = listOf(User("demo", "demo", setOf(startFlowPermission<AttachmentDemoFlow>())))
             val (nodeA, nodeB) = Futures.allAsList(
                     startNode(DUMMY_BANK_A.name, rpcUsers = demoUser),
                     startNode(DUMMY_BANK_B.name, rpcUsers = demoUser),

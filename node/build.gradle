@@ -150,6 +150,9 @@ dependencies {
     // Requery: object mapper for Kotlin
     compile "io.requery:requery-kotlin:$requery_version"
 
+    // https://mvnrepository.com/artifact/org.reflections/reflections
+    compile group: 'org.reflections', name: 'reflections', version: '0.9.11'
+
     // Integration test helpers
     integrationTestCompile "junit:junit:$junit_version"
 }
