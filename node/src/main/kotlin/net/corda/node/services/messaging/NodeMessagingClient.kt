@@ -74,7 +74,8 @@ class NodeMessagingClient(override val config: NodeConfiguration,
                           val nodeExecutor: AffinityExecutor,
                           val database: Database,
                           val networkMapRegistrationFuture: ListenableFuture<Unit>,
-                          val monitoringService: MonitoringService
+                          val monitoringService: MonitoringService,
+                          myAdvertisedHostPort: HostAndPort = serverHostPort
 ) : ArtemisMessagingComponent(), MessagingService {
     companion object {
         private val log = loggerFor<NodeMessagingClient>()
@@ -132,9 +133,9 @@ class NodeMessagingClient(override val config: NodeConfiguration,
      * Apart from the NetworkMapService this is the only other address accessible to the node outside of lookups against the NetworkMapCache.
      */
     override val myAddress: SingleMessageRecipient = if (myIdentity != null) {
-        NodeAddress.asPeer(myIdentity, serverHostPort)
+        NodeAddress.asPeer(myIdentity, myAdvertisedHostPort)
     } else {
-        NetworkMapAddress(serverHostPort)
+        NetworkMapAddress(myAdvertisedHostPort)
     }
 
     private val state = ThreadBox(InnerState())

@@ -130,12 +130,12 @@ class Node(override val configuration: FullNodeConfiguration,
                 configuration,
                 versionInfo,
                 serverAddress,
-                advertisedAddress,
                 myIdentityOrNullIfNetworkMapService,
                 serverThread,
                 database,
                 networkMapRegistrationFuture,
-                services.monitoringService)
+                services.monitoringService,
+                advertisedAddress)
     }
 
     private fun makeLocalMessageBroker(): HostAndPort {
