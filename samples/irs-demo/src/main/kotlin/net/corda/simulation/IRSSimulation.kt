@@ -8,7 +8,7 @@ import com.google.common.util.concurrent.SettableFuture
 import net.corda.core.RunOnCallerThread
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.UniqueIdentifier
-import net.corda.core.crypto.AnonymousParty
+import net.corda.core.identity.AnonymousParty
 import net.corda.core.flatMap
 import net.corda.core.flows.FlowStateMachine
 import net.corda.core.map

@@ -2,7 +2,7 @@ package net.corda.testing.node
 
 import co.paralleluniverse.common.util.VisibleForTesting
 import net.corda.core.crypto.DummyPublicKey
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.X509Utilities
 import net.corda.core.messaging.SingleMessageRecipient
 import net.corda.core.node.NodeInfo

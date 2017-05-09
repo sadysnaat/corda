@@ -1,6 +1,6 @@
 package net.corda.flows
 
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.SecureHash
 import net.corda.core.transactions.SignedTransaction
 

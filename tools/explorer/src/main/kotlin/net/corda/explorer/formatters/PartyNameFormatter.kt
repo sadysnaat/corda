@@ -1,6 +1,6 @@
 package net.corda.explorer.formatters
 
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.commonName
 import org.bouncycastle.asn1.x500.X500Name
 

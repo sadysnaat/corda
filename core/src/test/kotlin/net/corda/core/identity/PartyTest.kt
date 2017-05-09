@@ -1,5 +1,9 @@
-package net.corda.core.crypto
+package net.corda.core.identity
 
+import net.corda.core.crypto.entropyToKeyPair
+import net.corda.core.identity.AbstractParty
+import net.corda.core.identity.AnonymousParty
+import net.corda.core.identity.Party
 import net.corda.core.utilities.ALICE
 import org.junit.Test
 import java.math.BigInteger

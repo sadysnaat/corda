@@ -2,7 +2,7 @@ package net.corda.flows
 
 import co.paralleluniverse.fibers.Suspendable
 import net.corda.core.contracts.*
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.flows.FlowException
 import net.corda.core.flows.FlowLogic
 import net.corda.core.node.PluginServiceHub

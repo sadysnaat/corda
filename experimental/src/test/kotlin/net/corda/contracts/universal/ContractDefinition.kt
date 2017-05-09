@@ -1,6 +1,6 @@
 package net.corda.contracts.universal
 
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.generateKeyPair
 import net.corda.core.utilities.ALICE
 import net.corda.testing.MEGA_CORP

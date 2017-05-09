@@ -1,7 +1,7 @@
 package net.corda.core.node.services
 
 import net.corda.core.contracts.StateRef
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.SecureHash
 import net.corda.core.serialization.CordaSerializable
 

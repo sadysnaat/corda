@@ -2,7 +2,7 @@ package net.corda.flows
 
 import net.corda.core.contracts.AbstractAttachment
 import net.corda.core.contracts.Attachment
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.SecureHash
 import net.corda.core.crypto.sha256
 import net.corda.core.serialization.SerializationToken

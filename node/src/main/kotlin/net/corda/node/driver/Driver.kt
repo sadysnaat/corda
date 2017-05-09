@@ -8,7 +8,7 @@ import com.typesafe.config.Config
 import com.typesafe.config.ConfigRenderOptions
 import net.corda.client.rpc.CordaRPCClient
 import net.corda.core.*
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.X509Utilities
 import net.corda.core.crypto.appendToCommonName
 import net.corda.core.crypto.commonName

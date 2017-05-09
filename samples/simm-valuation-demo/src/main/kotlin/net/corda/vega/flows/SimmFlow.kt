@@ -12,8 +12,8 @@ import com.opengamma.strata.pricer.rate.ImmutableRatesProvider
 import com.opengamma.strata.pricer.swap.DiscountingSwapProductPricer
 import net.corda.core.contracts.StateAndRef
 import net.corda.core.contracts.StateRef
-import net.corda.core.crypto.AnonymousParty
-import net.corda.core.crypto.Party
+import net.corda.core.identity.AnonymousParty
+import net.corda.core.identity.Party
 import net.corda.core.flows.FlowLogic
 import net.corda.core.node.PluginServiceHub
 import net.corda.core.node.services.dealsWith

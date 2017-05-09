@@ -4,7 +4,7 @@ import com.esotericsoftware.kryo.Kryo
 import com.nhaarman.mockito_kotlin.mock
 import com.nhaarman.mockito_kotlin.whenever
 import net.corda.core.contracts.*
-import net.corda.core.crypto.Party
+import net.corda.core.identity.Party
 import net.corda.core.crypto.SecureHash
 import net.corda.core.node.services.AttachmentStorage
 import net.corda.core.node.services.StorageService
