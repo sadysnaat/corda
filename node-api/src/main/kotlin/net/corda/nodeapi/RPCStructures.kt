@@ -12,8 +12,6 @@ import net.corda.core.toObservable
 import net.corda.nodeapi.config.OldConfig
 import rx.Observable
 import java.io.InputStream
-import java.io.PrintWriter
-import java.io.StringWriter
 
 data class User(
         @OldConfig("user")
@@ -72,6 +70,9 @@ class RPCKryo(observableSerializer: Serializer<Observable<Any>>) : CordaKryo(mak
     }
 
     override fun getRegistration(type: Class<*>): Registration {
+        require(!type.name.startsWith("net.corda.node.")) {
+            "RPC not allowed to deserialise node classes: ${type.name}"
+        }
         if (Observable::class.java != type && Observable::class.java.isAssignableFrom(type)) {
             return super.getRegistration(Observable::class.java)
         }
