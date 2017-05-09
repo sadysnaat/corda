@@ -121,12 +121,16 @@ class Node(override val configuration: FullNodeConfiguration,
 
     override fun makeMessagingService(): MessagingService {
         userService = RPCUserServiceImpl(configuration.rpcUsers)
-        val serverAddress = configuration.messagingServerAddress ?: makeLocalMessageBroker()
+        val (serverAddress, advertisedAddress) = if (configuration.messagingServerAddress == null) {
+            HostAndPort.fromParts("localhost", configuration.p2pAddress.port) to makeLocalMessageBroker()
+        } else configuration.messagingServerAddress to configuration.messagingServerAddress
+
         val myIdentityOrNullIfNetworkMapService = if (networkMapAddress != null) obtainLegalIdentity().owningKey else null
         return NodeMessagingClient(
                 configuration,
                 versionInfo,
                 serverAddress,
+                advertisedAddress,
                 myIdentityOrNullIfNetworkMapService,
                 serverThread,
                 database,
@@ -139,7 +143,7 @@ class Node(override val configuration: FullNodeConfiguration,
             val useHost = tryDetectIfNotPublicHost(p2pAddress.host)
             val useAddress = useHost?.let { HostAndPort.fromParts(it, p2pAddress.port) } ?: p2pAddress
             messageBroker = ArtemisMessagingServer(this, useAddress, rpcAddress, services.networkMapCache, userService)
-            return HostAndPort.fromParts("localhost", p2pAddress.port)
+            return useAddress
         }
     }
 
@@ -153,8 +157,7 @@ class Node(override val configuration: FullNodeConfiguration,
             val foundPublicIP = AddressUtils.tryDetectPublicIP()
 
             if (foundPublicIP == null) {
-                if (configuration.networkMapService != null)
-                    return discoverPublicHost(configuration.networkMapService.address)
+                networkMapAddress?.let { return discoverPublicHost(it.hostAndPort) }
             } else {
                 log.info("Detected public IP: ${foundPublicIP.hostAddress}. This will be used instead the provided \"$host\" as the advertised address.")
                 return foundPublicIP.hostAddress
@@ -180,7 +183,7 @@ class Node(override val configuration: FullNodeConfiguration,
         val consumer = session.createConsumer(queueName)
         val artemisMessage: ClientMessage = consumer.receive(5000)
         val publicHostAndPort = HostAndPort.fromString(artemisMessage.getStringProperty(ipDetectResponseProperty))
-        log.trace { "Detected public address: $publicHostAndPort" }
+        log.info("Detected public address: $publicHostAndPort")
 
         consumer.close()
         session.deleteQueue(queueName)
