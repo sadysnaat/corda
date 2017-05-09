@@ -8,7 +8,6 @@ import com.google.common.util.concurrent.SettableFuture
 import net.corda.core.*
 import net.corda.core.contracts.Amount
 import net.corda.core.contracts.PartyAndReference
-import net.corda.core.crypto.KeyStoreUtilities
 import net.corda.core.crypto.*
 import net.corda.core.flows.FlowInitiator
 import net.corda.core.flows.FlowLogic
@@ -22,7 +21,6 @@ import net.corda.core.node.services.NetworkMapCache.MapChange
 import net.corda.core.serialization.OpaqueBytes
 import net.corda.core.serialization.SingletonSerializeAsToken
 import net.corda.core.serialization.deserialize
-import net.corda.core.serialization.serialize
 import net.corda.core.transactions.SignedTransaction
 import net.corda.core.utilities.debug
 import net.corda.flows.*
