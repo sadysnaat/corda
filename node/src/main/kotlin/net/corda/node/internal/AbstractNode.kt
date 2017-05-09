@@ -589,7 +589,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             // Load the private key.
             val keyPair = privKeyFile.readAll().deserialize<KeyPair>()
             // TODO: Use a proper certificate chain.
-            val selfSignCert = X509Utilities.createSelfSignedCACert(serviceName, Crypto.DEFAULT_SIGNATURE_SCHEME, keyPair)
+            val selfSignCert = X509Utilities.createSelfSignedCACert(serviceName, keyPair)
             keystore.addOrReplaceKey(privateKeyAlias, keyPair.private, configuration.keyStorePassword.toCharArray(), arrayOf(selfSignCert.certificate))
             keystore.save(configuration.keyStoreFile, configuration.keyStorePassword)
             Pair(myIdentity, keyPair)
@@ -597,7 +597,7 @@ abstract class AbstractNode(open val configuration: NodeConfiguration,
             // Create new keys and store in keystore.
             log.info("Identity key not found, generating fresh key!")
             val keyPair: KeyPair = generateKeyPair()
-            val selfSignCert = X509Utilities.createSelfSignedCACert(serviceName, Crypto.DEFAULT_SIGNATURE_SCHEME, keyPair)
+            val selfSignCert = X509Utilities.createSelfSignedCACert(serviceName, keyPair)
             keystore.addOrReplaceKey(privateKeyAlias, selfSignCert.keyPair.private, configuration.keyStorePassword.toCharArray(), arrayOf(selfSignCert.certificate))
             keystore.save(configuration.keyStoreFile, configuration.keyStorePassword)
             Pair(Party(serviceName, selfSignCert.keyPair.public), selfSignCert.keyPair)
