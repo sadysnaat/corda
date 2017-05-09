@@ -139,7 +139,7 @@ class Node(override val configuration: FullNodeConfiguration,
             val useHost = tryDetectIfNotPublicHost(p2pAddress.host)
             val useAddress = useHost?.let { HostAndPort.fromParts(it, p2pAddress.port) } ?: p2pAddress
             messageBroker = ArtemisMessagingServer(this, useAddress, rpcAddress, services.networkMapCache, userService)
-            return useAddress
+            return HostAndPort.fromParts("localhost", p2pAddress.port)
         }
     }
 
