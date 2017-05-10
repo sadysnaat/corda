@@ -69,6 +69,8 @@ class InMemoryIdentityService : SingletonSerializeAsToken(), IdentityServiceInte
 
     @Throws(CertificateExpiredException::class, CertificateNotYetValidException::class, InvalidAlgorithmParameterException::class)
     override fun registerPath(trustedRoot: X509Certificate, anonymousParty: AnonymousParty, path: CertPath) {
+        // TODO: We need a better solution than trusting identity certificates - should probably take in
+        // a root (R3?), identity and anonymous certs
         val expectedTrustAnchor = TrustAnchor(trustedRoot, null)
         require(path.certificates.isNotEmpty()) { "Certificate path must contain at least one certificate" }
         val validator = CertPathValidator.getInstance("PKIX")
